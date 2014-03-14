@@ -44,7 +44,7 @@ public class ManagerInterface {
 			case "3": sendOrder(); break;
 			case "4": changeItemPrice(); break;
 			case "5": deleteSales(); break;
-			case "6": System.out.println("Exiting..."); System.exit(0); break;
+			case "6": System.out.println("Exiting..."); conn.close(); System.exit(0); break;
 			default: System.out.println("Exiting..."); System.exit(0); break;
 		}
 	}

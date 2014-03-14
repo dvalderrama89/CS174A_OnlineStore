@@ -27,12 +27,13 @@ class CustomerInterface{
 			loggedIn = customerLogin();
 		}while(!loggedIn);
 		while(true){
-			CustomerMenu();
+			customerMenu();
 		}
 	}
 
 	public static void connectToDB() throws SQLException
 	{
+		System.out.println("Connecting to database...\n");
 		// Connect to the database
 		String strConn = "jdbc:oracle:thin:@uml.cs.ucsb.edu:1521:xe";
 		String strUsername = "dvalderrama";
@@ -90,7 +91,7 @@ class CustomerInterface{
 		return success;
 	}
 	
-	public static void CustomerMenu() throws SQLException
+	public static void customerMenu() throws SQLException
 	{
 		System.out.println("Search for item: 1\nDelete from cart: 2"+
 							"\nDisplay cart: 3\nCheck out: 4\nFind order: 5\nRerun order: 6\nExit: 7");
@@ -103,7 +104,7 @@ class CustomerInterface{
 			case "4": System.out.println("Checkout"); checkout(); break;
 			case "5": System.out.println("Find"); findOrder(); break;
 			case "6": System.out.println("Rerun"); rerunOrder(); break;
-			case "7": System.out.println("Exiting"); System.exit(0); break;
+			case "7": System.out.println("Exiting"); conn.close(); System.exit(0); break;
 			default: System.out.println("Invalid selection.\n"); break;
 		}
 	}
@@ -234,6 +235,27 @@ class CustomerInterface{
 			stocknum = keyboard.nextLine();
 			if(stocknum.isEmpty())
 				break;
+			//Check if the stocknum is already in the cart and throw an error if it is
+			boolean inCart = false;
+
+			PreparedStatement alreadyInCartQuery = conn.prepareStatement("SELECT stocknum FROM CartContents WHERE stocknum = ?");
+			alreadyInCartQuery.setString(1, stocknum);
+			ResultSet inCartRS = alreadyInCartQuery.executeQuery();
+
+			while(inCartRS.next())
+			{
+				if(stocknum.equals(inCartRS.getString("STOCKNUM")))
+					inCart = true;
+			}
+			inCartRS.close();
+			if(inCart)
+			{
+				System.out.println("That item is arleady in your cart! Delete it first then try adding "
+						+ "it again if you want to revise your order.");
+				System.out.println("Returning to main menu...\n");
+				break;
+			}
+			
 			String lookupPrice = String.format("SELECT CatalogItems.price FROM CatalogItems WHERE stocknum = '%s'", stocknum);
 			Statement stmt2 = conn.createStatement();
 			ResultSet rs3 = stmt2.executeQuery(lookupPrice);
@@ -241,9 +263,39 @@ class CustomerInterface{
 				price = rs3.getFloat("PRICE");
 			rs3.close();
 
-			System.out.println("Enter a quantity:");
-			quantity = keyboard.nextLine();
+			//Need to check entered quantity against the current stock in the warehouse and
+			//return an error if there isn't enough stock 
+			boolean validQuantity = false;
+			do
+			{
+				int inputQuantity;
+				do
+				{
+					System.out.println("Enter a quantity:");
+					quantity = keyboard.nextLine();
+					inputQuantity = Integer.parseInt(quantity);
+				}while(inputQuantity < 1);
+				PreparedStatement inventoryQuery = conn.prepareStatement("SELECT quantity FROM Inventory WHERE stock_num = ?");
+				inventoryQuery.setString(1, stocknum);
+				ResultSet inventoryRS = inventoryQuery.executeQuery();
+				int warehouseQuantity=0;
+				while(inventoryRS.next())
+				{
+					warehouseQuantity = inventoryRS.getInt("QUANTITY");
+				}
+				inventoryRS.close();
+				if(inputQuantity > warehouseQuantity)
+				{
+					System.out.println("Error, not enough stock in the warehouse, please enter another value.");
 
+				}
+				else
+				{
+					validQuantity = true;
+				}
+			}while(!validQuantity);
+			
+			
 			String snInsert = String.format("INSERT INTO CartContents VALUES('%s','%d', '%s', '%.2f')",stocknum,
 					cartID, quantity, price);
 			stmt.executeQuery(snInsert);
